@@ -1,23 +1,29 @@
 name: Deploy site to GitHub Pages
 
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: "0 17 * * *"
+    - cron: "0 17 * * *"→ Runs at 17:00
+
       timezone: "America/Vancouver"
-    - cron: "0 19 * * *"
+    - cron: "0 19 * * *"→ Runs at 19:00
+
       timezone: "America/Vancouver"
+
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+
 concurrency:
   group: pages
   cancel-in-progress: false
+
 
 jobs:
   build:
@@ -63,6 +69,15 @@ jobs:
               out = local_path(url)
               if out.endswith((".html", ".css", ".js", ".json", ".rsc")) and os.path.exists(out):
                   text = data.decode("utf-8", "ignore")
+                  # GitHub Pages serves this project below /iconic-daily/.
+                  # Rewrite root-relative internal routes as well as assets;
+                  # otherwise links such as /favorites escape the project and
+                  # land on GitHub's 404 page.
+                  text = re.sub(
+                      r'''(?P<attr>\b(?:href|src|action)=["'])(?P<path>/(?!iconic-daily/|assets/|images/|favicon|icon|_next/)(?:[^"'#?]+))(?P<suffix>[?#][^"']*)?(?P<quote>["'])''',
+                      lambda m: f"/iconic-daily/{m.group('path').lstrip('/')}{m.group('suffix') or ''}{m.group('quote')}",
+                      text,
+                  )
                   text = re.sub(r'''(["'(])/(?!iconic-daily/)(assets/|images/)''', r'''\1/iconic-daily/\2''', text)
                   text = text.replace('href="/"', 'href="/iconic-daily/"').replace("href='/'", "href='/iconic-daily/'")
                   open(out, "w", encoding="utf-8").write(text)
@@ -74,15 +89,3 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
