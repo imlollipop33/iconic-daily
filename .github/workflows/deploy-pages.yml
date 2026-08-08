@@ -1,39 +1,23 @@
 name: Deploy site to GitHub Pages
 
-
-
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
   schedule:
     - cron: "0 17 * * *"
-
-
       timezone: "America/Vancouver"
     - cron: "0 19 * * *"
-
-
       timezone: "America/Vancouver"
-
-
-
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-
-
-
 concurrency:
   group: pages
   cancel-in-progress: false
-
-
-
 
 jobs:
   build:
@@ -42,45 +26,117 @@ jobs:
       - name: Download the current public site
         run: |
           python - <<'PY'
-          import os, re, urllib.request
+          import os
+          import re
+          import urllib.request
+
           base = "https://iconic-daily.imlollipop33.chatgpt.site"
           root = "_site"
-          os.makedirs(root, exist_ok=True)
-          routes = ["/", "/stories", "/album", "/favorites", "/day-2", "/day-3", "/day-4", "/day-5", "/album/leonardo", "/album/li-bai", "/album/marie-curie", "/album/michelangelo"]
+          routes = [
+              "/", "/stories", "/album", "/favorites",
+              "/day-2", "/day-3", "/day-4", "/day-5",
+              "/album/leonardo", "/album/li-bai",
+              "/album/marie-curie", "/album/michelangelo",
+          ]
           files = {}
+
           def local_path(url):
-              p = url.split("?", 1)[0].split("#", 1)[0]
-              if p in ("", "/"): return os.path.join(root, "index.html")
-              p = p.lstrip("/")
-              if "." not in os.path.basename(p): p += "/index.html"
-              return os.path.join(root, p)
+              path = url.split("?", 1)[0].split("#", 1)[0]
+              if path in ("", "/"):
+                  return os.path.join(root, "index.html")
+              path = path.lstrip("/")
+              if "." not in os.path.basename(path):
+                  path += "/index.html"
+              return os.path.join(root, path)
+
           def get(url):
-              if url in files: return files[url]
+              if url in files:
+                  return files[url]
               try:
-                  req = urllib.request.Request(base + url, headers={"User-Agent": "Mozilla/5.0 (compatible; iconic-daily-pages/1.0)"})
-                  with urllib.request.urlopen(req, timeout=45) as r: data = r.read()
-              except Exception as e:
-                  print("skip", url, e); return b""
-              files[url] = data; return data
-          queue = list(routes); seen = set()
+                  request = urllib.request.Request(
+                      base + url,
+                      headers={"User-Agent": "iconic-daily-pages/1.0"},
+                  )
+                  with urllib.request.urlopen(request, timeout=45) as response:
+                      data = response.read()
+              except Exception as error:
+                  print("skip", url, error)
+                  return b""
+              files[url] = data
+              return data
+
+          queue = list(routes)
+          seen = set()
           while queue:
               url = queue.pop(0).split("#", 1)[0]
-              if url in seen: continue
-              seen.add(url); data = get(url)
-              if not data: continue
-              out = local_path(url); os.makedirs(os.path.dirname(out), exist_ok=True)
-              open(out, "wb").write(data)
-              if out.endswith((".html", ".htm")):
-                  text = data.decode("utf-8", "ignore")
-                  refs = re.findall(r'''(?:src|href)=["'](/[^"'#?]+(?:\?[^"'#]*)?)["']''', text)
-                  refs += re.findall(r'''["'](/(?:assets|images|favicon|icon)[^"']*)["']''', text)
-                  queue += [x for x in refs if x.startswith("/") and not x.startswith("//")]
+              if url in seen:
+                  continue
+              seen.add(url)
+              data = get(url)
+              if not data:
+                  continue
+              output = local_path(url)
+              os.makedirs(os.path.dirname(output), exist_ok=True)
+              with open(output, "wb") as handle:
+                  handle.write(data)
+              if output.endswith((".html", ".htm")):
+                  html = data.decode("utf-8", "ignore")
+                  references = re.findall(
+                      r'''(?:src|href)=["'](/[^"'#?]+(?:\?[^"'#]*)?)["']''',
+                      html,
+                  )
+                  references += re.findall(
+                      r'''["'](/(?:assets|images|favicon|icon)[^"']*)["']''',
+                      html,
+                  )
+                  queue.extend(
+                      item for item in references
+                      if item.startswith("/") and not item.startswith("//")
+                  )
+
+          route_pattern = r'''((?:href|src|action)=["'])/(?!iconic-daily/|assets/|images/|favicon|icon/|_next/)([^"'#?]+)([?#][^"']*)?(["'])'''
+          asset_pattern = r'''(["'(])/(?!iconic-daily/)(assets/|images/)'''
+
           for url, data in files.items():
-              out = local_path(url)
-              if out.endswith((".html", ".css", ".js", ".json", ".rsc")) and os.path.exists(out):
-                  text = data.decode("utf-8", "ignore")
-                  # GitHub Pages serves this project below /iconic-daily/.
-                  # Rewrite root-relative internal routes as well as assets;
-                  # otherwise links such as /favorites escape the project and
-                  # land on GitHub's 404 page.
-                  text = re.sub(
+              output = local_path(url)
+              if not output.endswith((".html", ".css", ".js", ".json", ".rsc")):
+                  continue
+              if not os.path.exists(output):
+                  continue
+              text = data.decode("utf-8", "ignore")
+              text = re.sub(
+                  route_pattern,
+                  lambda match: (
+                      match.group(1)
+                      + "/iconic-daily/"
+                      + match.group(2)
+                      + (match.group(3) or "")
+                      + match.group(4)
+                  ),
+                  text,
+              )
+              text = re.sub(asset_pattern, r"\1/iconic-daily/\2", text)
+              text = text.replace('href="/"', 'href="/iconic-daily/"')
+              text = text.replace("href='/'", "href='/iconic-daily/'")
+              with open(output, "w", encoding="utf-8") as handle:
+                  handle.write(text)
+
+          index = os.path.join(root, "index.html")
+          if not os.path.exists(index):
+              raise SystemExit("No public site files were downloaded.")
+          with open(os.path.join(root, ".nojekyll"), "w") as handle:
+              handle.write("")
+          print("downloaded", len(files), "files")
+          PY
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
