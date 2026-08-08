@@ -5,6 +5,8 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
+    - cron: "0 17 * * *"
+      timezone: "America/Vancouver"
     - cron: "0 19 * * *"
       timezone: "America/Vancouver"
 
@@ -27,6 +29,7 @@ jobs:
           import os, re, urllib.request
           base = "https://iconic-daily.imlollipop33.chatgpt.site"
           root = "_site"
+          os.makedirs(root, exist_ok=True)
           routes = ["/", "/stories", "/album", "/favorites", "/day-2", "/day-3", "/day-4", "/day-5", "/album/leonardo", "/album/li-bai", "/album/marie-curie", "/album/michelangelo"]
           files = {}
           def local_path(url):
@@ -38,7 +41,8 @@ jobs:
           def get(url):
               if url in files: return files[url]
               try:
-                  with urllib.request.urlopen(base + url, timeout=45) as r: data = r.read()
+                  req = urllib.request.Request(base + url, headers={"User-Agent": "Mozilla/5.0 (compatible; iconic-daily-pages/1.0)"})
+                  with urllib.request.urlopen(req, timeout=45) as r: data = r.read()
               except Exception as e:
                   print("skip", url, e); return b""
               files[url] = data; return data
@@ -62,6 +66,9 @@ jobs:
                   text = re.sub(r'''(["'(])/(?!iconic-daily/)(assets/|images/)''', r'''\1/iconic-daily/\2''', text)
                   text = text.replace('href="/"', 'href="/iconic-daily/"').replace("href='/'", "href='/iconic-daily/'")
                   open(out, "w", encoding="utf-8").write(text)
+          if not os.path.exists(os.path.join(root, "index.html")):
+              raise SystemExit("No public site files were downloaded; refusing to publish an empty site.")
+          open(os.path.join(root, ".nojekyll"), "w").write("")
           print("downloaded", len(files), "files")
           PY
       - name: Upload Pages artifact
