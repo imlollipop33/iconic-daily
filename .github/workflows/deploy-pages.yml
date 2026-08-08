@@ -1,17 +1,23 @@
 name: Deploy site to GitHub Pages
 
 
+
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: "0 17 * * *"→ Runs at 17:00
+    - cron: "0 17 * * *"
+
 
       timezone: "America/Vancouver"
-    - cron: "0 19 * * *"→ Runs at 19:00
+    - cron: "0 19 * * *"
+
 
       timezone: "America/Vancouver"
+
+
 
 
 permissions:
@@ -20,9 +26,13 @@ permissions:
   id-token: write
 
 
+
+
 concurrency:
   group: pages
   cancel-in-progress: false
+
+
 
 
 jobs:
@@ -74,18 +84,3 @@ jobs:
                   # otherwise links such as /favorites escape the project and
                   # land on GitHub's 404 page.
                   text = re.sub(
-                      r'''(?P<attr>\b(?:href|src|action)=["'])(?P<path>/(?!iconic-daily/|assets/|images/|favicon|icon|_next/)(?:[^"'#?]+))(?P<suffix>[?#][^"']*)?(?P<quote>["'])''',
-                      lambda m: f"/iconic-daily/{m.group('path').lstrip('/')}{m.group('suffix') or ''}{m.group('quote')}",
-                      text,
-                  )
-                  text = re.sub(r'''(["'(])/(?!iconic-daily/)(assets/|images/)''', r'''\1/iconic-daily/\2''', text)
-                  text = text.replace('href="/"', 'href="/iconic-daily/"').replace("href='/'", "href='/iconic-daily/'")
-                  open(out, "w", encoding="utf-8").write(text)
-          if not os.path.exists(os.path.join(root, "index.html")):
-              raise SystemExit("No public site files were downloaded; refusing to publish an empty site.")
-          open(os.path.join(root, ".nojekyll"), "w").write("")
-          print("downloaded", len(files), "files")
-          PY
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
