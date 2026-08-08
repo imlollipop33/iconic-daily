@@ -1,0 +1,81 @@
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 19 * * *"
+      timezone: "America/Vancouver"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the current public site
+        run: |
+          python - <<'PY'
+          import os, re, urllib.request
+          base = "https://iconic-daily.imlollipop33.chatgpt.site"
+          root = "_site"
+          routes = ["/", "/stories", "/album", "/favorites", "/day-2", "/day-3", "/day-4", "/day-5", "/album/leonardo", "/album/li-bai", "/album/marie-curie", "/album/michelangelo"]
+          files = {}
+          def local_path(url):
+              p = url.split("?", 1)[0].split("#", 1)[0]
+              if p in ("", "/"): return os.path.join(root, "index.html")
+              p = p.lstrip("/")
+              if "." not in os.path.basename(p): p += "/index.html"
+              return os.path.join(root, p)
+          def get(url):
+              if url in files: return files[url]
+              try:
+                  with urllib.request.urlopen(base + url, timeout=45) as r: data = r.read()
+              except Exception as e:
+                  print("skip", url, e); return b""
+              files[url] = data; return data
+          queue = list(routes); seen = set()
+          while queue:
+              url = queue.pop(0).split("#", 1)[0]
+              if url in seen: continue
+              seen.add(url); data = get(url)
+              if not data: continue
+              out = local_path(url); os.makedirs(os.path.dirname(out), exist_ok=True)
+              open(out, "wb").write(data)
+              if out.endswith((".html", ".htm")):
+                  text = data.decode("utf-8", "ignore")
+                  refs = re.findall(r'''(?:src|href)=["'](/[^"'#?]+(?:\?[^"'#]*)?)["']''', text)
+                  refs += re.findall(r'''["'](/(?:assets|images|favicon|icon)[^"']*)["']''', text)
+                  queue += [x for x in refs if x.startswith("/") and not x.startswith("//")]
+          for url, data in files.items():
+              out = local_path(url)
+              if out.endswith((".html", ".css", ".js", ".json", ".rsc")) and os.path.exists(out):
+                  text = data.decode("utf-8", "ignore")
+                  text = re.sub(r'''(["'(])/(?!iconic-daily/)(assets/|images/)''', r'''\1/iconic-daily/\2''', text)
+                  text = text.replace('href="/"', 'href="/iconic-daily/"').replace("href='/'", "href='/iconic-daily/'")
+                  open(out, "w", encoding="utf-8").write(text)
+          print("downloaded", len(files), "files")
+          PY
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
