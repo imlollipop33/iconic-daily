@@ -121,6 +121,56 @@ jobs:
               with open(output, "w", encoding="utf-8") as handle:
                   handle.write(text)
 
+          favorites = os.path.join(root, "favorites", "index.html")
+          if os.path.exists(favorites):
+              with open(favorites, "r", encoding="utf-8") as handle:
+                  favorites_text = handle.read()
+              restore_script = r"""<script>
+          (function () {
+            var key = "iconic-favorites";
+            var marker = "iconic-favorites-restored-v1";
+            if (!window.localStorage.getItem(marker)) {
+              var seed = [
+                {"slug":"salvador-dali","name":"薩爾瓦多・達利","original":"Salvador Dalí","field":"超現實主義藝術家","origin":"西班牙・菲格拉斯","years":"1904 — 1989","intro":"他把夢境搬進現實，也把自己活成一件作品。","quote":"我不是奇怪，我只是不同於你。","initials":"SD","portrait":"/iconic-daily/images/dali-portrait.jpg","portraitAlt":"帶著豹貓 Babou 的薩爾瓦多・達利"},
+                {"slug":"michelangelo","name":"米開朗基羅","original":"Michelangelo Buonarroti","field":"雕刻家・畫家・建築師・詩人","origin":"義大利・卡普雷塞／佛羅倫斯","years":"1475 — 1564","intro":"他一生都在和石頭、教宗、家人與自己的完美主義拉扯。","quote":"我仍在學習。","initials":"MB","portrait":"/iconic-daily/images/michelangelo-portrait.jpg","portraitAlt":"米開朗基羅肖像"},
+                {"slug":"marie-curie","name":"瑪麗・居禮","original":"Marie Skłodowska Curie","field":"物理學家・化學家","origin":"波蘭・華沙","years":"1867 — 1934","intro":"她先替自己爭取讀書的權利，後來才替世界看見放射線的力量。","quote":"生活中沒有什麼可怕的事，只有需要理解的事。","initials":"MC","portrait":"/iconic-daily/images/marie-curie-portrait.jpg","portraitAlt":"瑪麗・居禮肖像"},
+                {"slug":"li-bai","name":"李白","original":"Li Bai / Li Po","field":"唐代詩人・遊俠","origin":"傳統記載：碎葉・成長於蜀地","years":"701 — 762","intro":"他把月光、酒與遠方寫成了千年後仍會發亮的句子。","quote":"天生我材必有用，千金散盡還復來。","initials":"LB","portrait":"/iconic-daily/images/li-bai-portrait.jpg","portraitAlt":"後世想像中的李白肖像"}
+              ];
+              var existing = [];
+              try {
+                existing = JSON.parse(window.localStorage.getItem(key) || "[]");
+                if (!Array.isArray(existing)) existing = [];
+              } catch (error) {
+                existing = [];
+              }
+              var merged = [];
+              var seen = {};
+              seed.concat(existing).forEach(function (item) {
+                if (item && item.original && !seen[item.original]) {
+                  seen[item.original] = true;
+                  merged.push(item);
+                }
+              });
+              window.localStorage.setItem(key, JSON.stringify(merged));
+              window.localStorage.setItem(marker, "1");
+            }
+            function normalizeLinks() {
+              document.querySelectorAll("a[href^='/']").forEach(function (link) {
+                var href = link.getAttribute("href");
+                if (!href || href.indexOf("/iconic-daily/") === 0) return;
+                if (href.indexOf("/assets/") === 0 || href.indexOf("/images/") === 0 || href.indexOf("/favicon") === 0) return;
+                link.setAttribute("href", href === "/" ? "/iconic-daily/" : "/iconic-daily" + href);
+              });
+            }
+            normalizeLinks();
+            new MutationObserver(normalizeLinks).observe(document.documentElement, {subtree:true, childList:true, attributes:true, attributeFilter:["href"]});
+          })();
+          </script>"""
+              insert_before = "</head>" if "</head>" in favorites_text else "</body>"
+              favorites_text = favorites_text.replace(insert_before, restore_script + insert_before, 1)
+              with open(favorites, "w", encoding="utf-8") as handle:
+                  handle.write(favorites_text)
+
           index = os.path.join(root, "index.html")
           if not os.path.exists(index):
               raise SystemExit("No public site files were downloaded.")
